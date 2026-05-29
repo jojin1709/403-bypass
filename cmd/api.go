@@ -5,12 +5,14 @@ import (
 	"crypto/tls"
 	"fmt"
 	"hash/fnv"
+	"html"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -244,11 +246,14 @@ func requestBody(method, uri string, headers []header, body string, proxy *url.U
 		}
 	}()
 
-	bodySize, bodyHash, _ := captureBodySignature(res.Body)
+	bodySize, bodyHash, title, bodyClass, wafBlock, _ := captureResponseFingerprint(res.Body, res.Header, res.StatusCode)
 	return ResponseInfo{
 		statusCode:    res.StatusCode,
 		contentLength: bodySize,
 		bodyHash:      bodyHash,
+		title:         title,
+		bodyClass:     bodyClass,
+		wafBlock:      wafBlock,
 		location:      res.Header.Get("Location"),
 		contentType:   res.Header.Get("Content-Type"),
 		server:        res.Header.Get("Server"),
@@ -478,25 +483,112 @@ func rawRequestTarget(rawURI string) string {
 }
 
 func captureBodySignature(r io.Reader) (int, string, error) {
+	total, bodyHash, _, _, _, err := captureResponseFingerprint(r, nil, 0)
+	return total, bodyHash, err
+}
+
+func captureResponseFingerprint(r io.Reader, headers http.Header, statusCode int) (int, string, string, string, bool, error) {
 	hasher := fnv.New64a()
 	buf := make([]byte, 4096)
 	total := 0
+	var sample []byte
+	const sampleLimit = 65536
 
 	for {
 		n, err := r.Read(buf)
 		if n > 0 {
 			total += n
 			_, _ = hasher.Write(buf[:n])
+			if len(sample) < sampleLimit {
+				remaining := sampleLimit - len(sample)
+				if n < remaining {
+					remaining = n
+				}
+				sample = append(sample, buf[:remaining]...)
+			}
 		}
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return total, "", err
+			return total, "", "", "", false, err
 		}
 	}
 
-	return total, fmt.Sprintf("%x", hasher.Sum64()), nil
+	title := extractHTMLTitle(string(sample))
+	bodyClass, wafBlock := classifyResponseBody(string(sample), headers, statusCode, total)
+	return total, fmt.Sprintf("%x", hasher.Sum64()), title, bodyClass, wafBlock, nil
+}
+
+var titlePattern = regexp.MustCompile(`(?is)<\s*title[^>]*>(.*?)<\s*/\s*title\s*>`)
+
+func extractHTMLTitle(sample string) string {
+	match := titlePattern.FindStringSubmatch(sample)
+	if len(match) < 2 {
+		return ""
+	}
+	title := html.UnescapeString(match[1])
+	title = strings.Join(strings.Fields(title), " ")
+	if len(title) > 160 {
+		title = title[:160]
+	}
+	return title
+}
+
+func classifyResponseBody(sample string, headers http.Header, statusCode int, total int) (string, bool) {
+	lower := strings.ToLower(sample)
+	server := ""
+	contentType := ""
+	cfRay := ""
+	if headers != nil {
+		server = strings.ToLower(headers.Get("Server"))
+		contentType = strings.ToLower(headers.Get("Content-Type"))
+		cfRay = headers.Get("CF-Ray")
+	}
+
+	wafSignals := []string{
+		"waf has blocked",
+		"web application firewall",
+		"waf block by rule",
+		"request blocked",
+		"blocked by rule",
+		"access denied",
+		"attention required",
+		"security policy",
+		"mod_security",
+		"modsecurity",
+	}
+	for _, signal := range wafSignals {
+		if strings.Contains(lower, signal) {
+			return "waf-block", true
+		}
+	}
+	if statusCode == http.StatusForbidden && (strings.Contains(server, "cloudflare") || cfRay != "") {
+		return "waf-block", true
+	}
+
+	switch {
+	case total == 0:
+		return "empty", false
+	case strings.Contains(lower, "login") || strings.Contains(lower, "sign in") || strings.Contains(lower, "signin"):
+		return "login", false
+	case strings.Contains(lower, "forbidden") || strings.Contains(lower, "unauthorized") || strings.Contains(lower, "permission denied"):
+		return "access-denied", false
+	case strings.Contains(lower, "not found") || strings.Contains(lower, "404"):
+		return "not-found", false
+	case strings.Contains(lower, "index of /") || strings.Contains(lower, "directory listing"):
+		return "directory-listing", false
+	case strings.Contains(contentType, "json") || strings.HasPrefix(strings.TrimSpace(sample), "{") || strings.HasPrefix(strings.TrimSpace(sample), "["):
+		return "json", false
+	case strings.Contains(contentType, "html") || strings.Contains(lower, "<html") || strings.Contains(lower, "<!doctype html"):
+		return "html", false
+	case strings.Contains(contentType, "xml") || strings.HasPrefix(strings.TrimSpace(sample), "<?xml"):
+		return "xml", false
+	case strings.Contains(contentType, "text"):
+		return "text", false
+	default:
+		return "other", false
+	}
 }
 
 func rawRequest(method, uri string, requestTarget string, headers []header, body string, timeout int) (ResponseInfo, error) {
@@ -590,11 +682,14 @@ func rawRequest(method, uri string, requestTarget string, headers []header, body
 		_ = res.Body.Close()
 	}()
 
-	bodySize, bodyHash, _ := captureBodySignature(res.Body)
+	bodySize, bodyHash, title, bodyClass, wafBlock, _ := captureResponseFingerprint(res.Body, res.Header, res.StatusCode)
 	return ResponseInfo{
 		statusCode:    res.StatusCode,
 		contentLength: bodySize,
 		bodyHash:      bodyHash,
+		title:         title,
+		bodyClass:     bodyClass,
+		wafBlock:      wafBlock,
 		location:      res.Header.Get("Location"),
 		contentType:   res.Header.Get("Content-Type"),
 		server:        res.Header.Get("Server"),

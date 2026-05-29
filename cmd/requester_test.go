@@ -355,6 +355,76 @@ func TestHTTPParserResultsAreRecordedForTopFindings(t *testing.T) {
 	}
 }
 
+func TestScoreResultPenalizesSameBodyFalsePositive(t *testing.T) {
+	resetMaps()
+	setGlobalBaseline(ResponseInfo{
+		statusCode:    403,
+		contentLength: 528,
+		bodyHash:      "same",
+		title:         "Example Domain",
+		bodyClass:     "html",
+	})
+
+	result := Result{
+		technique:     "headers-ip",
+		statusCode:    200,
+		contentLength: 528,
+		bodyHash:      "same",
+		title:         "Example Domain",
+		bodyClass:     "html",
+	}
+
+	score := scoreResult(result)
+	if score >= 55 {
+		t.Fatalf("expected same-body 200 false positive to stay below likely-bypass threshold, got %d", score)
+	}
+	reason := scoreReason(result)
+	if !strings.Contains(reason, "same body as baseline") || !strings.Contains(reason, "same body class") {
+		t.Fatalf("expected same-body false-positive reason, got %q", reason)
+	}
+}
+
+func TestScoreResultPenalizesWAFBlockPages(t *testing.T) {
+	resetMaps()
+	setGlobalBaseline(ResponseInfo{
+		statusCode:    403,
+		contentLength: 333170,
+		bodyHash:      "aaa",
+		title:         "Oooops! WAF has blocked the action.",
+		bodyClass:     "waf-block",
+		wafBlock:      true,
+	})
+
+	result := Result{
+		technique:     "endpaths",
+		statusCode:    200,
+		contentLength: 333100,
+		bodyHash:      "bbb",
+		title:         "Oooops! WAF has blocked the action.",
+		bodyClass:     "waf-block",
+		wafBlock:      true,
+	}
+
+	score := scoreResult(result)
+	if score >= 55 {
+		t.Fatalf("expected WAF block page to stay below likely-bypass threshold, got %d", score)
+	}
+	if !strings.Contains(scoreReason(result), "WAF/block page") {
+		t.Fatalf("expected WAF block page in reason, got %q", scoreReason(result))
+	}
+}
+
+func TestClassifyResponseBodyDetectsTitleAndWAF(t *testing.T) {
+	body := `<html><head><title>Oooops! WAF has blocked the action.</title></head><body>WAF block by rule</body></html>`
+	if got := extractHTMLTitle(body); got != "Oooops! WAF has blocked the action." {
+		t.Fatalf("unexpected title %q", got)
+	}
+	bodyClass, wafBlock := classifyResponseBody(body, nil, 403, len(body))
+	if bodyClass != "waf-block" || !wafBlock {
+		t.Fatalf("expected WAF block classification, got class=%q waf=%v", bodyClass, wafBlock)
+	}
+}
+
 func TestJoinURL(t *testing.T) {
 	cases := []struct {
 		base string

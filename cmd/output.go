@@ -17,6 +17,9 @@ type JSONResult struct {
 	Likelihood    string `json:"likelihood"`
 	ScoreReason   string `json:"score_reason,omitempty"`
 	BodyHash      string `json:"body_hash,omitempty"`
+	Title         string `json:"title,omitempty"`
+	BodyClass     string `json:"body_class,omitempty"`
+	WAFBlock      bool   `json:"waf_block,omitempty"`
 	Location      string `json:"location,omitempty"`
 	ContentType   string `json:"content_type,omitempty"`
 	Server        string `json:"server,omitempty"`
@@ -102,6 +105,9 @@ func writeResultToOutput(result Result, technique string) {
 			Likelihood:    result.likelihood,
 			ScoreReason:   result.scoreReason,
 			BodyHash:      result.bodyHash,
+			Title:         result.title,
+			BodyClass:     result.bodyClass,
+			WAFBlock:      result.wafBlock,
 			Location:      result.location,
 			ContentType:   result.contentType,
 			Server:        result.server,

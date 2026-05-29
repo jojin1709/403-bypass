@@ -8,6 +8,7 @@ import (
 	"hash/fnv"
 	"log"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -30,6 +31,9 @@ type Result struct {
 	contentLength int
 	defaultReq    bool
 	bodyHash      string
+	title         string
+	bodyClass     string
+	wafBlock      bool
 	location      string
 	contentType   string
 	server        string
@@ -49,6 +53,9 @@ type ResponseInfo struct {
 	statusCode    int
 	contentLength int
 	bodyHash      string
+	title         string
+	bodyClass     string
+	wafBlock      bool
 	location      string
 	contentType   string
 	server        string
@@ -172,6 +179,9 @@ func resultFromResponse(line string, defaultReq bool, technique string, resp Res
 		contentLength: resp.contentLength,
 		defaultReq:    defaultReq,
 		bodyHash:      resp.bodyHash,
+		title:         resp.title,
+		bodyClass:     resp.bodyClass,
+		wafBlock:      resp.wafBlock,
 		location:      resp.location,
 		contentType:   resp.contentType,
 		server:        resp.server,
@@ -300,6 +310,18 @@ func hasBodyChanged(baseline ResponseInfo, result Result) bool {
 	return baseline.bodyHash != "" && result.bodyHash != "" && baseline.bodyHash != result.bodyHash
 }
 
+func hasSameBody(baseline ResponseInfo, result Result) bool {
+	return baseline.bodyHash != "" && result.bodyHash != "" && baseline.bodyHash == result.bodyHash
+}
+
+func hasTitleChanged(baseline ResponseInfo, result Result) bool {
+	return baseline.title != "" && result.title != "" && !strings.EqualFold(baseline.title, result.title)
+}
+
+func hasBodyClassChanged(baseline ResponseInfo, result Result) bool {
+	return baseline.bodyClass != "" && result.bodyClass != "" && baseline.bodyClass != result.bodyClass
+}
+
 func looksLikeAccessControlRedirect(location string) bool {
 	loc := strings.ToLower(location)
 	for _, token := range []string{"login", "signin", "sign-in", "auth", "forbidden", "denied", "unauthorized", "403", "error"} {
@@ -397,6 +419,22 @@ func scoreReason(result Result) string {
 	if hasBodyChanged(baseline, result) {
 		reasons = append(reasons, "body changed")
 	}
+	if hasSameBody(baseline, result) && baseline.statusCode != result.statusCode {
+		reasons = append(reasons, "same body as baseline")
+	}
+	if hasTitleChanged(baseline, result) {
+		reasons = append(reasons, "title changed")
+	}
+	if baseline.bodyClass != "" && result.bodyClass != "" {
+		if hasBodyClassChanged(baseline, result) {
+			reasons = append(reasons, fmt.Sprintf("body class %s->%s", baseline.bodyClass, result.bodyClass))
+		} else if baseline.statusCode != result.statusCode {
+			reasons = append(reasons, "same body class")
+		}
+	}
+	if result.wafBlock {
+		reasons = append(reasons, "WAF/block page")
+	}
 	if baseline.location != result.location {
 		reasons = append(reasons, "location changed")
 	}
@@ -466,6 +504,12 @@ func scoreResult(result Result) int {
 	if hasBodyChanged(baseline, result) {
 		score += 10
 	}
+	if hasTitleChanged(baseline, result) {
+		score += 8
+	}
+	if hasBodyClassChanged(baseline, result) {
+		score += 8
+	}
 	if baseline.location != result.location {
 		score += 6
 	}
@@ -483,6 +527,21 @@ func scoreResult(result Result) int {
 	}
 	if accessControlRedirect {
 		score -= 22
+	}
+	if result.wafBlock {
+		score -= 30
+	}
+	if hasSameBody(baseline, result) && baseline.statusCode != result.statusCode {
+		score -= 45
+	}
+	if baseline.wafBlock && result.wafBlock {
+		score -= 20
+	}
+	if baseline.bodyClass != "" && baseline.bodyClass == result.bodyClass && baseline.statusCode != result.statusCode {
+		score -= 16
+	}
+	if baseline.title != "" && result.title != "" && strings.EqualFold(baseline.title, result.title) && baseline.statusCode != result.statusCode {
+		score -= 12
 	}
 	if result.statusCode >= 300 && result.statusCode < 400 && (!anomalousRedirect || accessControlRedirect) {
 		if score > 24 {
@@ -575,6 +634,9 @@ func responseInfoFromResult(result Result) ResponseInfo {
 		statusCode:    result.statusCode,
 		contentLength: result.contentLength,
 		bodyHash:      result.bodyHash,
+		title:         result.title,
+		bodyClass:     result.bodyClass,
+		wafBlock:      result.wafBlock,
 		location:      result.location,
 		contentType:   result.contentType,
 		server:        result.server,
@@ -1308,6 +1370,9 @@ func executeReplay(spec ReplaySpec) (ResponseInfo, error) {
 			statusCode:    res.statusCode,
 			contentLength: res.contentLength,
 			bodyHash:      res.bodyHash,
+			title:         res.title,
+			bodyClass:     res.bodyClass,
+			wafBlock:      res.wafBlock,
 			location:      res.location,
 			contentType:   res.contentType,
 			server:        res.server,
@@ -2636,13 +2701,16 @@ func parseCurlOutput(output string, httpVersion string) Result {
 	location := ""
 	contentType := ""
 	server := ""
+	headers := make(http.Header)
 	for _, headerLine := range lines[1:] {
 		pair := strings.SplitN(headerLine, ":", 2)
 		if len(pair) != 2 {
 			continue
 		}
-		key := strings.TrimSpace(strings.ToLower(pair[0]))
+		headerName := strings.TrimSpace(pair[0])
+		key := strings.ToLower(headerName)
 		value := strings.TrimSpace(pair[1])
+		headers.Add(headerName, value)
 		switch key {
 		case "location":
 			location = value
@@ -2657,6 +2725,8 @@ func parseCurlOutput(output string, httpVersion string) Result {
 		_, _ = hasher.Write([]byte(body))
 		bodyHash = fmt.Sprintf("%x", hasher.Sum64())
 	}
+	title := extractHTMLTitle(body)
+	bodyClass, wafBlock := classifyResponseBody(body, headers, statusCode, bodySize)
 
 	return Result{
 		line:          httpVersionOutput,
@@ -2664,6 +2734,9 @@ func parseCurlOutput(output string, httpVersion string) Result {
 		contentLength: bodySize,
 		defaultReq:    false,
 		bodyHash:      bodyHash,
+		title:         title,
+		bodyClass:     bodyClass,
+		wafBlock:      wafBlock,
 		location:      location,
 		contentType:   contentType,
 		server:        server,

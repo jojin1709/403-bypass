@@ -35,6 +35,7 @@ This tool does not "break authentication" by itself. It helps find differences b
 - Baseline-driven comparison against the blocked response
 - Auto-calibration to reduce false positives from default `404` or parent-path responses
 - Scored output with separate summaries for likely bypasses and interesting variations
+- False-positive filtering using status, length, body hash, HTML title, body class, and WAF/block-page detection
 - Replay and reproducibility for high-value findings
 - Retry and backoff for transient network failures
 - Concurrent execution with per-technique progress
@@ -49,7 +50,7 @@ This tool does not "break authentication" by itself. It helps find differences b
 ```bash
 git clone https://github.com/jojin1709/403-bypass.git
 cd 403-bypass
-go build
+go build -o nomore403
 ```
 
 ### Build on Windows PowerShell
@@ -57,7 +58,7 @@ go build
 ```powershell
 git clone https://github.com/jojin1709/403-bypass.git
 cd 403-bypass
-go build
+go build -o nomore403.exe
 .\nomore403.exe --help
 ```
 
@@ -67,7 +68,7 @@ If Go cannot write to the default cache folder on Windows, use local cache folde
 $env:GOCACHE="$PWD\.gocache"
 $env:GOPATH="$PWD\.gopath"
 go test ./...
-go build
+go build -o nomore403.exe
 ```
 
 The `payloads/` directory is read at runtime. Keep it beside the executable, or point the tool to it with `-f`.
@@ -146,6 +147,12 @@ Save JSONL output:
 .\nomore403.exe -u https://target.tld/admin --jsonl -o findings.jsonl
 ```
 
+Use a Burp-style raw request file:
+
+```powershell
+.\nomore403.exe --request-file .\request.txt --jsonl -o findings.jsonl
+```
+
 ## Example Output
 
 ```text
@@ -214,6 +221,8 @@ The tool generally rewards:
 - transitions to `3xx`
 - large body-length changes
 - body hash changes
+- HTML title changes
+- body-class changes, such as `waf-block` to `html` or `login` to `json`
 - `Location` changes
 - anomalous redirects that do not appear to resolve into a login or denied flow
 - differences that survive replay
@@ -221,6 +230,9 @@ The tool generally rewards:
 The tool generally down-ranks:
 
 - near-identical responses
+- `200` responses that have the same body hash as the blocked baseline
+- responses with the same HTML title and same body class as the blocked baseline
+- Cloudflare, WAF, or generic block pages
 - repeated parser noise
 - unstable replay results
 - empty-body redirects that appear to lead back into access control
@@ -231,6 +243,34 @@ Recommended interpretation:
 - `HIGH`: likely actionable; review first
 - `MED`: plausible candidate; usually worth manual replay
 - `LOW`: parser difference, routing anomaly, or lower-confidence behavior
+
+### False-positive filtering
+
+Many sites return `200` for a rewritten or fragment-stripped URL while still serving the same error, homepage, login page, or WAF block page. The tool now fingerprints responses with:
+
+- body hash
+- HTML `<title>`
+- body class, for example `waf-block`, `login`, `access-denied`, `not-found`, `json`, or `html`
+- WAF/block-page signals from body text and headers such as `CF-Ray`
+
+This means a result like `403->200` is no longer treated as strong by status alone. If it has the same body, same title, or the same WAF/block page as the baseline, it is pushed down into low-confidence output.
+
+In JSON and JSONL output, check these fields:
+
+```json
+{
+  "status_code": 200,
+  "score": 18,
+  "likelihood": "low",
+  "score_reason": "status 403->200, same body as baseline, same body class",
+  "body_hash": "9f31...",
+  "title": "Oooops! WAF has blocked the action.",
+  "body_class": "waf-block",
+  "waf_block": true
+}
+```
+
+Treat `waf_block: true`, `same body as baseline`, or `same body class` as signs that the result probably needs manual review before calling it a bypass.
 
 ## Auto-Calibration
 
@@ -434,6 +474,71 @@ Example:
 
 ```bash
 ./nomore403 -u https://target.tld/admin --jsonl -o findings.jsonl
+```
+
+### Windows PowerShell with JSON output
+
+```powershell
+.\nomore403.exe -u https://target.tld/admin --json -o findings.json
+```
+
+### Linux/macOS request-file mode
+
+```bash
+./nomore403 --request-file request.txt -k headers,endpaths --jsonl -o findings.jsonl
+```
+
+### Windows request-file mode
+
+```powershell
+.\nomore403.exe --request-file .\request.txt -k headers,endpaths --jsonl -o findings.jsonl
+```
+
+### Build and test locally
+
+Linux/macOS:
+
+```bash
+go test ./...
+go build -o nomore403
+```
+
+Windows PowerShell:
+
+```powershell
+$env:GOCACHE="$PWD\.gocache"
+$env:GOPATH="$PWD\.gopath"
+go test ./...
+go build -o nomore403.exe
+```
+
+## GitHub Actions
+
+The repository includes:
+
+- `.github/workflows/test.yml`
+  - runs `go test ./...`
+  - runs `go build ./...`
+  - triggers on pushes to `main` and pull requests
+- `.github/workflows/release.yml`
+  - builds Windows `.exe`
+  - builds Linux amd64
+  - builds macOS amd64 and arm64
+  - packages the `payloads/` folder with each binary
+  - publishes artifacts automatically when you push a version tag
+
+Create a release from your terminal:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+On Windows PowerShell:
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
 ## Flags

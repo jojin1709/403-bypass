@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build release binaries
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            ext: .exe
+          - goos: linux
+            goarch: amd64
+            ext: ""
+          - goos: darwin
+            goarch: amd64
+            ext: ""
+          - goos: darwin
+            goarch: arm64
+            ext: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w" -o "dist/403-bypass-${GOOS}-${GOARCH}${{ matrix.ext }}" .
+
+      - name: Package payloads
+        run: |
+          cd dist
+          mkdir "403-bypass-${{ matrix.goos }}-${{ matrix.goarch }}"
+          mv "403-bypass-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" "403-bypass-${{ matrix.goos }}-${{ matrix.goarch }}/"
+          cp -R ../payloads "403-bypass-${{ matrix.goos }}-${{ matrix.goarch }}/payloads"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            zip -r "403-bypass-${{ matrix.goos }}-${{ matrix.goarch }}.zip" "403-bypass-${{ matrix.goos }}-${{ matrix.goarch }}"
+          else
+            tar -czf "403-bypass-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" "403-bypass-${{ matrix.goos }}-${{ matrix.goarch }}"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: 403-bypass-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*

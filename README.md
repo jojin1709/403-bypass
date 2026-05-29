@@ -2,18 +2,19 @@
   <img src="https://i.imgur.com/F4D1zhr.png" width="350" height="200" alt="NoMore403 logo">
 </p>
 
-<h1 align="center">NoMore403</h1>
+<h1 align="center">403-BYPASS</h1>
+
+<p align="center"><strong>Developed by JOJIN JOHN</strong></p>
 
 <p align="center">
-  <a href="https://github.com/devploit/nomore403/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/devploit/nomore403?style=flat&logo=github"></a>
-  <a href="https://github.com/devploit/nomore403/forks"><img alt="GitHub forks" src="https://img.shields.io/github/forks/devploit/nomore403?style=flat&logo=github"></a>
-  <a href="https://goreportcard.com/report/github.com/devploit/nomore403"><img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/devploit/nomore403"></a>
+  <a href="https://github.com/jojin1709/403-BYPASS/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/jojin1709/403-BYPASS?style=flat&logo=github"></a>
+  <a href="https://github.com/jojin1709/403-BYPASS/forks"><img alt="GitHub forks" src="https://img.shields.io/github/forks/jojin1709/403-BYPASS?style=flat&logo=github"></a>
   <img alt="Go version" src="https://img.shields.io/badge/go-1.24-blue">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="Contributions welcome" src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg">
 </p>
 
-`nomore403` is a command-line tool for testing HTTP access-control bypasses and parser inconsistencies around `401`, `403`, and related responses.
+`403-BYPASS` is a command-line tool for testing HTTP access-control bypasses and parser inconsistencies around `401`, `403`, and related responses.
 
 The tool is designed for practical web security work: bug bounty, penetration testing, security reviews, and regression testing of access-control rules. It automates a broad set of request mutations, captures a baseline, filters common false positives, and highlights the responses most likely to represent a meaningful bypass.
 
@@ -46,18 +47,30 @@ This tool does not "break authentication" by itself. It helps find differences b
 ### Build from source
 
 ```bash
-git clone https://github.com/devploit/nomore403
-cd nomore403
+git clone https://github.com/jojin1709/403-BYPASS.git
+cd 403-BYPASS
 go build
 ```
 
-### Install with Go
+### Build on Windows PowerShell
 
-```bash
-go install github.com/devploit/nomore403@latest
+```powershell
+git clone https://github.com/jojin1709/403-BYPASS.git
+cd 403-BYPASS
+go build
+.\nomore403.exe --help
 ```
 
-If you install with `go install`, the `payloads/` directory is not installed automatically. Clone the repository and point the tool to that directory with `-f` if needed.
+If Go cannot write to the default cache folder on Windows, use local cache folders before testing or building:
+
+```powershell
+$env:GOCACHE="$PWD\.gocache"
+$env:GOPATH="$PWD\.gopath"
+go test ./...
+go build
+```
+
+The `payloads/` directory is read at runtime. Keep it beside the executable, or point the tool to it with `-f`.
 
 ## Requirements
 
@@ -107,12 +120,38 @@ Write machine-readable output:
 ./nomore403 -u https://target.tld/admin --jsonl -o findings.jsonl
 ```
 
+### Windows PowerShell examples
+
+Run the executable from the current folder:
+
+```powershell
+.\nomore403.exe --help
+```
+
+Run a low-noise scan:
+
+```powershell
+.\nomore403.exe -u https://target.tld/admin -k headers,endpaths,midpaths --top 10
+```
+
+Run slower against WAF-protected authorized targets:
+
+```powershell
+.\nomore403.exe -u https://target.tld/admin -k headers,endpaths --max-goroutines 2 --delay 1000 --top 10
+```
+
+Save JSONL output:
+
+```powershell
+.\nomore403.exe -u https://target.tld/admin --jsonl -o findings.jsonl
+```
+
 ## Example Output
 
 ```text
 target: https://target.tld/admin   method: GET   frontend: AWS ELB/ALB   payloads: payloads
 
-calib: 404 | 1245b | ±50 | frag 703b
+calib: 404 | 1245b | +/-50 | frag 703b
 
 BASELINE
   default       403    520 bytes    https://target.tld/admin
@@ -124,9 +163,9 @@ FINDINGS
 
 no visible results: 17 techniques
 
-━━━━━━━━━━━━━━ LIKELY BYPASS ━━━━━━━━━━━━━━━━━
+============== LIKELY BYPASS ==============
 [!100 HIGH] Header injection (IP) 403=>200    2048b
-         why: status 403->200, len Δ1528, body changed, type changed
+         why: status 403->200, len delta 1528, body changed, type changed
         item: X-Original-URL: /
         curl: curl -i -sS -k -H 'User-Agent: nomore403' -H 'X-Original-URL: /' 'https://target.tld/admin'
 ```

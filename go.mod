@@ -1,4 +1,4 @@
-module github.com/devploit/nomore403
+module github.com/jojin1709/403-bypass
 
 go 1.24.0
 

@@ -1,20 +1,20 @@
 <p align="center">
-  <img src="assets/403-bypass-banner.svg" width="900" alt="403-BYPASS banner">
+  <img src="assets/403-bypass-banner.svg" width="900" alt="403-bypass banner">
 </p>
 
-<h1 align="center">403-BYPASS</h1>
+<h1 align="center">403-bypass</h1>
 
 <p align="center"><strong>Developed by JOJIN JOHN</strong></p>
 
 <p align="center">
-  <a href="https://github.com/jojin1709/403-BYPASS/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/jojin1709/403-BYPASS?style=flat&logo=github"></a>
-  <a href="https://github.com/jojin1709/403-BYPASS/forks"><img alt="GitHub forks" src="https://img.shields.io/github/forks/jojin1709/403-BYPASS?style=flat&logo=github"></a>
+  <a href="https://github.com/jojin1709/403-bypass/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/jojin1709/403-bypass?style=flat&logo=github"></a>
+  <a href="https://github.com/jojin1709/403-bypass/forks"><img alt="GitHub forks" src="https://img.shields.io/github/forks/jojin1709/403-bypass?style=flat&logo=github"></a>
   <img alt="Go version" src="https://img.shields.io/badge/go-1.24-blue">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green">
   <img alt="Contributions welcome" src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg">
 </p>
 
-`403-BYPASS` is a command-line tool for testing HTTP access-control bypasses and parser inconsistencies around `401`, `403`, and related responses.
+`403-bypass` is a command-line tool for testing HTTP access-control bypasses and parser inconsistencies around `401`, `403`, and related responses.
 
 The tool is designed for practical web security work: bug bounty, penetration testing, security reviews, and regression testing of access-control rules. It automates a broad set of request mutations, captures a baseline, filters common false positives, and highlights the responses most likely to represent a meaningful bypass.
 
@@ -47,16 +47,16 @@ This tool does not "break authentication" by itself. It helps find differences b
 ### Build from source
 
 ```bash
-git clone https://github.com/jojin1709/403-BYPASS.git
-cd 403-BYPASS
+git clone https://github.com/jojin1709/403-bypass.git
+cd 403-bypass
 go build
 ```
 
 ### Build on Windows PowerShell
 
 ```powershell
-git clone https://github.com/jojin1709/403-BYPASS.git
-cd 403-BYPASS
+git clone https://github.com/jojin1709/403-bypass.git
+cd 403-bypass
 go build
 .\nomore403.exe --help
 ```

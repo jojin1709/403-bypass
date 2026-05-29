@@ -1,0 +1,64 @@
+<svg width="900" height="300" viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">403-BYPASS banner</title>
+  <desc id="desc">Dark security-themed banner for the 403-BYPASS command line tool.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#071019"/>
+      <stop offset="0.48" stop-color="#101923"/>
+      <stop offset="1" stop-color="#17151f"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4ee0a8"/>
+      <stop offset="1" stop-color="#48a6ff"/>
+    </linearGradient>
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="900" height="300" rx="22" fill="url(#bg)"/>
+  <rect x="24" y="24" width="852" height="252" rx="18" fill="none" stroke="#233243" stroke-width="2"/>
+
+  <g opacity="0.4" stroke="#2d4156" stroke-width="1">
+    <path d="M72 62H230M72 96H180M72 130H252M72 164H205M72 198H280M72 232H220"/>
+    <path d="M650 62H828M705 96H828M618 130H828M690 164H828M640 198H828M722 232H828"/>
+  </g>
+
+  <g transform="translate(104 72)">
+    <path d="M78 0 156 44v68c0 50-34 91-78 108C34 203 0 162 0 112V44L78 0Z" fill="#132434" stroke="#4ee0a8" stroke-width="5"/>
+    <path d="M48 99 70 121 114 69" fill="none" stroke="url(#accent)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" filter="url(#softGlow)"/>
+    <text x="78" y="166" text-anchor="middle" font-family="Consolas, Monaco, monospace" font-size="22" font-weight="700" fill="#e7f8ff">403</text>
+  </g>
+
+  <g transform="translate(294 77)">
+    <text x="0" y="40" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="58" font-weight="800" letter-spacing="1" fill="#f5fbff">403-BYPASS</text>
+    <text x="2" y="84" font-family="Consolas, Monaco, monospace" font-size="20" fill="#8fa7ba">Access-control bypass testing toolkit</text>
+    <g transform="translate(2 118)" font-family="Consolas, Monaco, monospace" font-size="18">
+      <rect x="0" y="0" width="474" height="52" rx="10" fill="#09131d" stroke="#24364a"/>
+      <text x="20" y="33" fill="#4ee0a8">$</text>
+      <text x="46" y="33" fill="#d6e7f2">nomore403 -u https://target.tld/admin</text>
+    </g>
+  </g>
+
+  <g transform="translate(704 98)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M58 0v48" stroke="#48a6ff" stroke-width="8"/>
+    <path d="M20 48h76" stroke="#48a6ff" stroke-width="8"/>
+    <path d="M20 48 0 90h116L96 48" stroke="#4ee0a8" stroke-width="8"/>
+    <path d="M28 90v42M58 90v42M88 90v42" stroke="#2dffb3" stroke-width="7"/>
+    <path d="M10 132h96" stroke="#2dffb3" stroke-width="7"/>
+  </g>
+
+  <g opacity="0.75" font-family="Consolas, Monaco, monospace" font-size="13" fill="#5f7890">
+    <text x="38" y="272">headers</text>
+    <text x="120" y="272">paths</text>
+    <text x="188" y="272">methods</text>
+    <text x="272" y="272">raw-http</text>
+    <text x="370" y="272">calibration</text>
+    <text x="496" y="272">jsonl</text>
+    <text x="558" y="272">replayable-curl</text>
+  </g>
+</svg>

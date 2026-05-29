@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://i.imgur.com/F4D1zhr.png" width="350" height="200" alt="NoMore403 logo">
+  <img src="assets/403-bypass-banner.svg" width="900" alt="403-BYPASS banner">
 </p>
 
 <h1 align="center">403-BYPASS</h1>
